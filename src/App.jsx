@@ -78,7 +78,7 @@ function App() {
   const calculate = () => {
     try {
       if (display.includes('/0')) {
-        setDisplay('Error: Division by Zero');
+        setDisplay('Error');
         return;
       }
   

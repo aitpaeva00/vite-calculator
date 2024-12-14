@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { evaluate } from 'mathjs';
 import './App.css';
+import { evaluate, create, all } from 'mathjs';
+
+const math = create(all);
+
 
 function App() {
   const [display, setDisplay] = useState('');
@@ -27,6 +30,13 @@ function App() {
   }, []);
 
   const handleInput = (input) => {
+
+    const operators = '+-*/%';
+  
+    if (operators.includes(input) && operators.includes(display[display.length - 1])) {
+      setDisplay((prev) => prev.slice(0, -1) + input); 
+      return;
+    }
    
     if (input === '.') {
       if (display.split(/[\+\-\*\/\(\)]/).pop().includes('.')) return;
@@ -49,29 +59,62 @@ function App() {
     setDisplay('');
   };
 
+  const normalizeExpression = (expr) => {
+    return expr.replace(/(\-{2,})/g, (match) => {
+      return match.length % 2 === 0 ? '+' : '-';
+    });
+  };
 
+
+  const roundToPrecision = (num, precision) => {
+    if (typeof num !== 'number' || typeof precision !== 'number') {
+      throw new Error('Both arguments must be numbers');
+    }
+    const factor = Math.pow(10, precision);
+    return Math.round(num * factor) / factor;
+  };
+
+  
   const calculate = () => {
     try {
       if (display.includes('/0')) {
-        setDisplay('Error');
+        setDisplay('Error: Division by Zero');
         return;
       }
   
-      let formattedExpression = display;
+      let formattedExpression = normalizeExpression(display);
+
+      if (formattedExpression.includes('√(') && !formattedExpression.includes(')')) {
+        formattedExpression += ')'; 
+      }
+
+      formattedExpression = formattedExpression
+      .replace(/(sin|cos|tan)\((.*?)$/g, (match, func, angle) => {
+        return `${func}(${angle})`;
+      });
+
   
       formattedExpression = formattedExpression
-        .replace(/sin\((.*?)\)/g, (_, angle) => `Math.sin(${toRadians(angle)})`)
-        .replace(/cos\((.*?)\)/g, (_, angle) => `Math.cos(${toRadians(angle)})`)
-        .replace(/tan\((.*?)\)/g, (_, angle) => `Math.tan(${toRadians(angle)})`)
-        .replace(/\u221a\((.*?)\)/g, (_, number) => `Math.sqrt(${number})`); 
+        .replace(/(\d+)%/g, (_, number) => `${handlePercent(number)}`)
+        .replace(/sin\((.*?)\)/g, (_, angle) => `math.sin(${toRadians(angle)})`)
+        .replace(/cos\((.*?)\)/g, (_, angle) => `math.cos(${toRadians(angle)})`)
+        .replace(/tan\((.*?)\)/g, (_, angle) => `math.tan(${toRadians(angle)})`)
+        .replace(/√\((.*?)\)/g, (_, number) => `math.sqrt(${number})`)
+        .replace(/√(\d+)/g, (_, number) => `math.sqrt(${number})`);
+    
   
-      const result = evaluate(formattedExpression);
-      setDisplay(result.toString());
+      console.log(formattedExpression);
+  
+      const result = evaluate(formattedExpression, { math });
+  
+      const roundedResult = roundToPrecision(result, 10);
+      setDisplay(roundedResult.toString());
     } catch (error) {
-      console.log(error)
+      console.error(error);
       setDisplay('Error');
     }
   };
+
 
   const toRadians = (angle) => {
     if (isDegrees) {
@@ -97,7 +140,7 @@ function App() {
       <div className="header">
         <div className="mode-controls">
           <span className="mode-toggle" onClick={toggleDegreeRad}>
-            {isDegrees ? 'deg' : 'rad'}
+            {isDegrees ? 'rad' : 'deg'}
           </span>
           <span className="scientific-mode-toggle" onClick={toggleScientificMode}>
             {scientificMode ? 'Basic' : 'Scientific'}
